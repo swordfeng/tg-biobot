@@ -1,0 +1,19 @@
+flags: {}
+extra-package-dbs: []
+packages:
+- '.'
+extra-deps:
+- aeson-0.11.2.0
+- bytestring-conversion-0.3.1
+- double-conversion-2.0.1.0
+- fail-4.9.0.0
+- http-media-0.6.3
+- regex-compat-0.95.1
+- regex-posix-0.95.2
+- servant-0.7.1
+- servant-client-0.7.1
+- string-conversions-0.4
+- telegram-api-0.4.3.0
+- utf8-string-1.0.1.1
+- vault-0.3.0.6
+resolver: ghc-8.0.1
