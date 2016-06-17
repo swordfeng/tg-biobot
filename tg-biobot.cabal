@@ -1,13 +1,12 @@
 name:                tg-biobot
 version:             0.1.0.0
-synopsis:            Initial project template from stack
-description:         Please see README.md
-homepage:            https://github.com/githubuser/tg-biobot#readme
-license:             BSD3
+description:         A Telegram biography bot
+homepage:            https://github.com/swordfeng/tg-biobot#readme
+license:             GPLv3
 license-file:        LICENSE
-author:              Author name here
-maintainer:          example@example.com
-copyright:           2016 Author name here
+author:              swordfeng
+maintainer:          swordfeng123@gmail.com
+copyright:           2016 swordfeng
 category:            Web
 build-type:          Simple
 -- extra-source-files:
@@ -30,4 +29,4 @@ executable tg-biobot
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/tg-biobot
+  location: https://github.com/swordfeng/tg-biobot
