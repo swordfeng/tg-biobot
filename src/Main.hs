@@ -134,7 +134,7 @@ helpMessage = T.pack . unlines $ [
     "Welcome to BioBot by @swordfeng!",
     "Commands:",
     "    /help - show this help",
-    "    /bio [username] - show one's bio",
+    "    /bio \\[username] - show one's bio",
     "    /setbio - set your bio"
     ]
 
