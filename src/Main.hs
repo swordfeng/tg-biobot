@@ -74,7 +74,7 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
             case result of
                 Left e -> print e
 
-        bioRegex = Regex.mkRegex "^/bio(@swbiobot|)\\b\\s*(\\S*)"
+        bioRegex = Regex.mkRegex "^/bio(@swbiobot|$|\\s)\\b\\s*(\\S*)"
         bioHandler msg@(Message { text = Just str }) = do
             case Regex.matchRegex bioRegex (T.unpack str) of
                 Just [_, username] -> if length username > 0 then doGetBio username else do
