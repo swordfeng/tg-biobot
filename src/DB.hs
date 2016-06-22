@@ -15,7 +15,7 @@ initDB conn = do
         "CREATE TABLE IF NOT EXISTS bio (",
         "    username varchar(255),",
         "    biography text not null,",
-        "    parsemode varchar(15) not null default \'\',",
+        "    parsemode varchar(15) not null default \'plain\',",
         "    primary key (username));"
         ]
     return ()
