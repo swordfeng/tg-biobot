@@ -120,7 +120,8 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                             sendMessage token msg manager
                         else do
                             setParseMode conn (T.unpack username) (T.unpack str)
-                            let msg = (retMsg "Invalid reply! Please re-input:") {
+                            setUserState conn uid ""
+                            let msg = (retMsg "Your bio is successfully set.") {
                                 message_reply_markup = Just replyKeyboardHide
                             }
                             sendMessage token msg manager
