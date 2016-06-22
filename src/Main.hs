@@ -50,24 +50,13 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
         handleUpdate Update { message = Just msg } = do
             forM_ textMessageHandlers $ \handler -> try (handler msg) :: IO (Either SomeException ())
         handleUpdate _ = return ()
-        textMessageHandlers = [pingHandler, startHandler, bioHandler, setbioHandler]
-        pingRegex = Regex.mkRegex "^/help(@swbiobot|)\\b"
-        pingHandler msg@(Message { text = Just str }) = do
-            guard $ Regex.matchRegex pingRegex (T.unpack str) /= Nothing
-            let req = messageReq {
-                message_chat_id = T.pack . show . chat_id . chat $ msg,
-                message_text = helpMessage,
-                message_reply_to_message_id = Just $ message_id msg
-            }
-            result <- sendMessage token req manager
-            case result of
-                Left e -> print e
+        textMessageHandlers = [helpHandler helpRegex, helpHandler startRegex, bioHandler, setbioHandler]
+
+        helpRegex = Regex.mkRegex "^/help(@swbiobot|)\\b"
         startRegex = Regex.mkRegex "^/start(@swbiobot|)\\b"
-        startHandler msg@(Message { text = Just str }) = do
-            guard $ Regex.matchRegex startRegex (T.unpack str) /= Nothing
-            let req = messageReq {
-                message_chat_id = (T.pack . show . chat_id . chat $ msg),
-                message_text = helpMessage,
+        helpHandler regex msg@(Message { text = Just str }) = do
+            guard $ Regex.matchRegex regex (T.unpack str) /= Nothing
+            let req = (sendMessageRequest (T.pack . show . chat_id . chat $ msg) helpMessage) {
                 message_reply_to_message_id = Just $ message_id msg
             }
             result <- sendMessage token req manager
@@ -85,19 +74,17 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                     let retMsg = case queryResult of
                             Nothing -> "Bio for user \'" ++ username ++ "\' is not set."
                             Just bio -> bio
-                    let req = messageReq {
-                        message_chat_id = (T.pack . show . chat_id . chat $ msg),
-                        message_text = T.pack retMsg,
+                    let req = (sendMessageRequest (T.pack . show . chat_id . chat $ msg) $ T.pack retMsg) {
                         message_reply_to_message_id = Just $ message_id msg
                     }
                     result <- sendMessage token req manager
                     case result of
                         Left e -> print e
 
+
         setbioRegex = Regex.mkRegex "^/setbio(@swbiobot|)\\b"
         setbioHandler msg@(Message { text = Just str }) = do
-            let retMsg = messageReq {
-                message_chat_id = (T.pack . show . chat_id . chat $ msg),
+            let retMsg str = (sendMessageRequest (T.pack . show . chat_id . chat $ msg) str) {
                 message_reply_to_message_id = Just $ message_id msg
             }
             -- check userID == chatID
@@ -110,23 +97,23 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                 else do
                     result <-
                         if uid /= cid then
-                            sendMessage token (retMsg { message_text = "Set your bio in private chat please!"}) manager
+                            sendMessage token (retMsg "Set your bio in private chat please!") manager
                         else do
                             let Just username = unameM
                             setBio conn (T.unpack username) (T.unpack str)
                             setUserState conn uid ""
-                            sendMessage token (retMsg { message_text = "Your bio is successfully set." }) manager
+                            sendMessage token (retMsg "Your bio is successfully set." ) manager
                     case result of
                         Left e -> print e
             else do
                 result <-
                     if uid /= cid then
-                        sendMessage token (retMsg { message_text = "Set your bio in private chat please!"}) manager
+                        sendMessage token (retMsg "Set your bio in private chat please!") manager
                     else case unameM of
-                        Nothing -> sendMessage token (retMsg { message_text = "Set your username please!" }) manager
+                        Nothing -> sendMessage token (retMsg "Set your username please!") manager
                         Just username -> do
                             setUserState conn uid "setbio"
-                            sendMessage token (retMsg { message_text = "Now reply to me to set your bio:" }) manager
+                            sendMessage token (retMsg "Now reply to me to set your bio:") manager
                 case result of
                     Left e -> print e
 
@@ -138,13 +125,3 @@ helpMessage = T.pack . unlines $ [
     "    /bio \\[username] - show one's bio",
     "    /setbio - set your bio"
     ]
-
-messageReq = SendMessageRequest {
-    message_chat_id = T.pack "",
-    message_text = "",
-    message_parse_mode = Just Markdown,
-    message_disable_web_page_preview = Nothing,
-    message_disable_notification = Nothing,
-    message_reply_to_message_id = Nothing,
-    message_reply_markup = Nothing
-}
