@@ -61,9 +61,7 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
             let req = (sendMessageRequest (T.pack . show . chat_id . chat $ msg) helpMessage) {
                 message_reply_to_message_id = Just $ message_id msg
             }
-            result <- sendMessage token req manager
-            case result of
-                Left e -> print e
+            perror =<< sendMessage token req manager
 
         bioRegex = Regex.mkRegex "^/bio(@swbiobot|$|\\s)\\b\\s*@{0,1}(\\S*)"
         bioHandler msg@(Message { text = Just str }) = do
@@ -73,24 +71,23 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                     doGetBio $ T.unpack username
             where doGetBio username = do
                     queryResult <- getBio conn username
-                    let retMsg = case queryResult of
-                            Nothing -> "Bio for user \'" ++ username ++ "\' is not set."
-                            Just bio -> bio
+                    let (retMsg, parsemode) = case queryResult of
+                            Nothing -> ("Bio for user \'" ++ username ++ "\' is not set.", parsemode)
+                            Just res -> res
                     let req = (sendMessageRequest (T.pack . show . chat_id . chat $ msg) $ T.pack retMsg) {
-                        message_reply_to_message_id = Just $ message_id msg
+                        message_reply_to_message_id = Just $ message_id msg,
+                        message_parse_mode = parsemodeStrToVal parsemode
                     }
-                    result <- sendMessage token req manager
-                    case result of
-                        Left e -> print e
+                    perror =<< sendMessage token req manager
 
         inlineQueryHandler inlineQuery = do
             let username = T.unpack $ query_query inlineQuery
             queryResult <- getBio conn username
             case queryResult of
                 Nothing -> answerInlineQuery token (answerInlineQueryRequest (query_id inlineQuery) []) manager
-                Just bio -> answerInlineQuery token (answerInlineQueryRequest (query_id inlineQuery) [resultArticle]) manager
+                Just (bio, parsemode) -> answerInlineQuery token (answerInlineQueryRequest (query_id inlineQuery) [resultArticle]) manager
                     where
-                        resultArticle = inlineQueryResultArticle (T.pack username) (T.pack username) (InputTextMessageContent (T.pack content) Nothing Nothing)
+                        resultArticle = inlineQueryResultArticle (T.pack username) (T.pack username) (InputTextMessageContent (T.pack content) (parsemodeStrToVal parsemode) Nothing)
                         content = "User: " ++ username ++ "\n\n" ++ bio
             return ()
 
@@ -106,20 +103,29 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
             let match = Regex.matchRegex setbioRegex (T.unpack str)
             if match == Nothing then do
                 state <- getUserState conn uid
-                if state /= "setbio" then return ()
-                else do
-                    result <-
-                        if uid /= cid then
-                            sendMessage token (retMsg "Set your bio in private chat please!") manager
+                let checkcid op = if uid == cid then op else return ()
+                case state of
+                    "setbio" -> checkcid $ perror =<< do
+                        let Just username = unameM
+                        setBio conn (T.unpack username) (T.unpack str)
+                        setUserState conn uid "setbiopm"
+                        let msg = (retMsg "Now set your bio's parse mode:") {
+                            message_reply_markup = Just . ReplyInlineKeyboardMarkup $ [map inlineKeyboardButton ["plain", "markdown", "html"]]
+                        }
+                        sendMessage token msg manager
+                    "setbiopm" -> checkcid $ perror =<< do
+                        let Just username = unameM
+                        if str /= "markdown" && str /= "html" && str /= "plain" then do
+                            let msg = (retMsg "Invalid reply! Please re-input:")
+                            sendMessage token msg manager
                         else do
-                            let Just username = unameM
-                            setBio conn (T.unpack username) (T.unpack str)
-                            setUserState conn uid ""
-                            sendMessage token (retMsg "Your bio is successfully set." ) manager
-                    case result of
-                        Left e -> print e
-            else do
-                result <-
+                            setParseMode conn (T.unpack username) (T.unpack str)
+                            let msg = (retMsg "Invalid reply! Please re-input:") {
+                                message_reply_markup = Just replyKeyboardHide
+                            }
+                            sendMessage token msg manager
+                    _ -> return ()
+                else perror =<< do
                     if uid /= cid then
                         sendMessage token (retMsg "Set your bio in private chat please!") manager
                     else case unameM of
@@ -127,8 +133,6 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                         Just username -> do
                             setUserState conn uid "setbio"
                             sendMessage token (retMsg "Now reply to me to set your bio:") manager
-                case result of
-                    Left e -> print e
 
 helpMessage = T.pack . unlines $ [
     "Welcome to BioBot by @swordfeng!",
@@ -138,3 +142,11 @@ helpMessage = T.pack . unlines $ [
     "    /bio \\[@]\\[username] - show one's bio",
     "    /setbio - set your bio"
     ]
+
+parsemodeStrToVal "markdown" = Just Markdown
+parsemodeStrToVal "html" = Just HTML
+parsemodeStrToVal _ = Nothing
+
+
+perror (Left e) = print e
+perror _ = return ()

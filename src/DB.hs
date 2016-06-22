@@ -15,18 +15,19 @@ initDB conn = do
         "CREATE TABLE IF NOT EXISTS bio (",
         "    username varchar(255),",
         "    biography text not null,",
+        "    parsemode varchar(15) not null default \'\',",
         "    primary key (username));"
         ]
     return ()
 
-getBio :: (IConnection conn) => conn -> String -> IO (Maybe String)
+getBio :: (IConnection conn) => conn -> String -> IO (Maybe (String, String))
 getBio conn username = (do
-    stmt <- prepare conn "SELECT username, biography FROM bio WHERE username = ?"
+    stmt <- prepare conn "SELECT username, biography, parsemode FROM bio WHERE username = ?"
     _ <- execute stmt [toSql username]
     result <- fetchAllRows stmt
     case result of
         [] -> return Nothing
-        res:_ -> return . Just . fromSql $ res!!1
+        res:_ -> return $ Just (fromSql $ res!!1, fromSql $ res!!2)
     ) `catch` \e -> print (e :: SomeException) >> return mzero
 
 setBio :: (IConnection conn) => conn -> String -> String -> IO ()
@@ -38,6 +39,13 @@ setBio conn username bio = (do
         _ <- execute stmt [toSql username, toSql bio]
         commit conn
     else commit conn
+    ) `catch` \e -> print (e :: SomeException)
+
+setParseMode :: (IConnection conn) => conn -> String -> String -> IO ()
+setParseMode conn username parsemode = (do
+    stmt <- prepare conn "UPDATE bio SET parsemode = ? WHERE username = ?"
+    _ <- execute stmt [toSql parsemode, toSql username]
+    commit conn
     ) `catch` \e -> print (e :: SomeException)
 
 getUserState :: (IConnection conn) => conn -> Int -> IO String
