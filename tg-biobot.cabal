@@ -2,7 +2,7 @@ name:                tg-biobot
 version:             0.1.0.0
 description:         A Telegram biography bot
 homepage:            https://github.com/swordfeng/tg-biobot#readme
-license:             GPLv3
+license:             GPL-3
 license-file:        LICENSE
 author:              swordfeng
 maintainer:          swordfeng123@gmail.com
