@@ -132,6 +132,7 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
 
 helpMessage = T.pack . unlines $ [
     "Welcome to BioBot by @swordfeng!",
+    "Project home: https://github.com/swordfeng/tg-biobot",
     "Commands:",
     "    /help - show this help",
     "    /bio \\[username] - show one's bio",
