@@ -47,9 +47,11 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
             forM_ updates handleUpdate
             processUpdates ctx { ctx_startPos = Just . (+1) . maximum . map update_id $ updates }
     where
-        handleUpdate Update { message = Just msg } = do
-            forM_ textMessageHandlers $ \handler -> try (handler msg) :: IO (Either SomeException ())
-        handleUpdate _ = return ()
+        handleUpdate update = do
+            case update of
+                Update { message = Just msg } -> forM_ textMessageHandlers $ \handler -> try (handler msg) :: IO (Either SomeException ())
+                Update { inline_query = Just inlineQuery } -> inlineQueryHandler inlineQuery
+                _ -> return ()
         textMessageHandlers = [helpHandler helpRegex, helpHandler startRegex, bioHandler, setbioHandler]
 
         helpRegex = Regex.mkRegex "^/help(@swbiobot|)\\b"
@@ -80,6 +82,16 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                     result <- sendMessage token req manager
                     case result of
                         Left e -> print e
+
+        inlineQueryHandler inlineQuery = do
+            let username = T.unpack $ query_query inlineQuery
+            queryResult <- getBio conn username
+            case queryResult of
+                Nothing -> answerInlineQuery token (answerInlineQueryRequest (query_id inlineQuery) []) manager
+                Just bio -> answerInlineQuery token (answerInlineQueryRequest (query_id inlineQuery) [resultArticle]) manager
+                    where
+                        resultArticle = inlineQueryResultArticle (T.pack username) (T.pack $ "found bio for " ++ username) (InputTextMessageContent (T.pack bio) Nothing Nothing)
+            return ()
 
 
         setbioRegex = Regex.mkRegex "^/setbio(@swbiobot|)\\b"
