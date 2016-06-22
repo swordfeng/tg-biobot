@@ -90,7 +90,8 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                 Nothing -> answerInlineQuery token (answerInlineQueryRequest (query_id inlineQuery) []) manager
                 Just bio -> answerInlineQuery token (answerInlineQueryRequest (query_id inlineQuery) [resultArticle]) manager
                     where
-                        resultArticle = inlineQueryResultArticle (T.pack username) (T.pack $ "found bio for " ++ username) (InputTextMessageContent (T.pack bio) Nothing Nothing)
+                        resultArticle = inlineQueryResultArticle (T.pack username) (T.pack username) (InputTextMessageContent (T.pack content) Nothing Nothing)
+                        content = "User: " ++ username ++ "\n\n" ++ bio
             return ()
 
 
