@@ -110,7 +110,7 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                         setBio conn (T.unpack username) (T.unpack str)
                         setUserState conn uid "setbiopm"
                         let msg = (retMsg "Now set your bio's parse mode:") {
-                            message_reply_markup = Just . ReplyInlineKeyboardMarkup $ [map inlineKeyboardButton ["plain", "markdown", "html"]]
+                            message_reply_markup = Just . replyKeyboardMarkup $ [map keyboardButton ["plain", "markdown", "html"]]
                         }
                         sendMessage token msg manager
                     "setbiopm" -> checkcid $ perror =<< do
