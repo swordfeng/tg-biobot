@@ -81,7 +81,7 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                     perror =<< sendMessage token req manager
 
         inlineQueryHandler inlineQuery = do
-            let username = T.unpack $ query_query inlineQuery
+            let username = case T.unpack $ query_query inlineQuery of { '@':n -> n; n -> n; }
             queryResult <- getBio conn username
             case queryResult of
                 Nothing -> answerInlineQuery token (answerInlineQueryRequest (query_id inlineQuery) []) manager
