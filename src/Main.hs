@@ -69,7 +69,7 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                     doGetBio $ T.unpack username
             where doGetBio username = do
                     queryResult <- getBio conn username
-                    let (retMsg, parsemode) = fromMaybe ("Bio for user \'" ++ username ++ "\' is not set.", parsemode) queryResult
+                    let (retMsg, parsemode) = fromMaybe ("Bio for user \'" ++ username ++ "\' is not set.", "plain") queryResult
                     let req = (sendMessageRequest (T.pack . show . chat_id . chat $ msg) $ T.pack retMsg) {
                         message_reply_to_message_id = Just $ message_id msg,
                         message_parse_mode = parsemodeStrToVal parsemode
@@ -135,8 +135,10 @@ helpMessage = T.pack . unlines $ [
     "Project home: https://github.com/swordfeng/tg-biobot",
     "Commands:",
     "    /help - show this help",
-    "    /bio \\[@]\\[username] - show one's bio",
-    "    /setbio - set your bio"
+    "    /bio [@][username] - show one's bio",
+    "    /setbio - set your bio",
+    "Inline query:",
+    "    @swbiobot [@]username - show one's bio (without this bot in the group)"
     ]
 
 parsemodeStrToVal "markdown" = Just Markdown
