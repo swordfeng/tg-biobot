@@ -136,7 +136,7 @@ helpMessage = T.pack . unlines $ [
     "Commands:",
     "    /help - show this help",
     "    /bio [@][username] - show one's bio",
-    "    /setbio - set your bio",
+    "    /setbio - set your bio (private chat only)",
     "Inline query:",
     "    @swbiobot [@]username - show one's bio (without this bot in the group)"
     ]
