@@ -29,7 +29,7 @@ main = do
     manager <- newManager tlsManagerSettings
     res <- getMe token manager
     case res of
-        Right GetMeResponse { user_result = u } -> putStrLn "initialized"
+        Right Response { result = u } -> putStrLn "initialized"
         Left e -> fail $ displayException e
     conn <- Sqlite3.connectSqlite3 "data.db"
     initDB conn
@@ -41,7 +41,7 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
     case result of
         Left e -> do unless ("ResponseTimeout" `L.isInfixOf` displayException e) $ print e
                      processUpdates ctx
-        Right UpdatesResponse { update_result = updates } -> do
+        Right Response { result = updates } -> do
             forM_ updates handleUpdate
             processUpdates ctx { ctxStartPos = Just . (+1) . maximum . map update_id $ updates }
     where
