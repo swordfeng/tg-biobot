@@ -14,15 +14,14 @@ import qualified Data.Text as T
 import Control.Exception (try, SomeException, displayException)
 import Data.Maybe (isNothing, isJust, fromMaybe)
 import Secret
-import DB
-import qualified Database.HDBC.Sqlite3 as Sqlite3
+import DB (initDB, getBio, setBio, getUserState, setUserState, setParseMode)
 import qualified Data.List as L
+import Data.TCache (atomically, atomicallySync)
 
 data Ctx = Ctx {
     ctxToken :: Token,
     ctxManager :: Manager,
-    ctxStartPos :: Maybe Int,
-    ctxConn :: Sqlite3.Connection
+    ctxStartPos :: Maybe Int
 }
 
 main = do
@@ -31,12 +30,11 @@ main = do
     case res of
         Right Response { result = u } -> putStrLn "initialized"
         Left e -> fail $ displayException e
-    conn <- Sqlite3.connectSqlite3 "data.db"
-    initDB conn
-    processUpdates $ Ctx token manager Nothing conn
+    initDB
+    processUpdates $ Ctx token manager Nothing
 
 processUpdates :: Ctx -> IO ()
-processUpdates ctx@(Ctx token manager startPos conn) = do
+processUpdates ctx@(Ctx token manager startPos) = do
     result <- getUpdates token startPos Nothing (Just 30) manager
     case result of
         Left e -> do unless ("ResponseTimeout" `L.isInfixOf` displayException e) $ print e
@@ -68,7 +66,7 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                     let Just User { user_username = Just username } = from msg
                     doGetBio $ T.unpack username
             where doGetBio username = do
-                    queryResult <- getBio conn username
+                    queryResult <- getBio username
                     let (retMsg, parsemode) = fromMaybe ("Bio for user \'" ++ username ++ "\' is not set.", "plain") queryResult
                     let req = (sendMessageRequest (T.pack . show . chat_id . chat $ msg) $ T.pack retMsg) {
                         message_reply_to_message_id = Just $ message_id msg,
@@ -78,7 +76,7 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
 
         inlineQueryHandler inlineQuery = do
             let username = case T.unpack $ query_query inlineQuery of { '@':n -> n; n -> n; }
-            queryResult <- getBio conn username
+            queryResult <- getBio username
             case queryResult of
                 Nothing -> answerInlineQuery token (answerInlineQueryRequest (query_id inlineQuery) []) manager
                 Just (bio, parsemode) -> answerInlineQuery token (answerInlineQueryRequest (query_id inlineQuery) [resultArticle]) manager
@@ -98,12 +96,13 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
             let cid = chat_id . chat $ msg
             let match = Regex.matchRegex setbioRegex (T.unpack str)
             if isNothing match then do
-                state <- getUserState conn uid
+                state <- getUserState uid
                 case state of
                     "setbio" -> when (uid == cid) $ perror =<< do
                         let Just username = unameM
-                        setBio conn (T.unpack username) (T.unpack str)
-                        setUserState conn uid "setbiopm"
+                        atomicallySync $ do
+                            setBio uid (T.unpack username) (T.unpack str)
+                            setUserState uid "setbiopm"
                         let msg = (retMsg "Now set your bio's parse mode:") {
                             message_reply_markup = Just . replyKeyboardMarkup $ [map keyboardButton ["plain", "markdown", "html"]]
                         }
@@ -114,8 +113,9 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                             let msg = retMsg "Invalid reply! Please re-input:"
                             sendMessage token msg manager
                         else do
-                            setParseMode conn (T.unpack username) (T.unpack str)
-                            setUserState conn uid ""
+                            atomicallySync $ do
+                                setParseMode uid (T.unpack str)
+                                setUserState uid ""
                             let msg = (retMsg "Your bio is successfully set.") {
                                 message_reply_markup = Just replyKeyboardHide
                             }
@@ -127,7 +127,7 @@ processUpdates ctx@(Ctx token manager startPos conn) = do
                     else case unameM of
                         Nothing -> sendMessage token (retMsg "Set your username please!") manager
                         Just username -> do
-                            setUserState conn uid "setbio"
+                            atomicallySync $ setUserState uid "setbio"
                             sendMessage token (retMsg "Now reply to me to set your bio:") manager
 
 helpMessage = T.pack . unlines $ [

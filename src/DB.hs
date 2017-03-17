@@ -1,70 +1,65 @@
+{-# LANGUAGE  DeriveDataTypeable, FlexibleInstances, UndecidableInstances #-}
 module DB where
 
 import Database.HDBC
+
+import Data.TCache
+import Data.TCache.Defs
+import Data.TCache.IndexQuery as IQ
+import Data.TCache.DefaultPersistence
+
+import qualified Data.Text as T
+import qualified Data.ByteString.Lazy.Char8 as BSLC
+
+import Data.Typeable (Typeable)
+
 import Control.Exception
 import Control.Monad (mzero)
 
-initDB conn = do
-    _ <- runRaw conn . unlines $ [
-        "CREATE TABLE IF NOT EXISTS state (",
-        "    uid int64,",
-        "    state varchar(15) not null default \'\',",
-        "    primary key (uid));"
-        ]
-    _ <- runRaw conn . unlines $ [
-        "CREATE TABLE IF NOT EXISTS bio (",
-        "    username varchar(255),",
-        "    biography text not null,",
-        "    parsemode varchar(15) not null default \'plain\',",
-        "    primary key (username));"
-        ]
-    return ()
+data User = User {
+    uid :: Int,
+    username :: String,
+    biography :: String,
+    parsemode :: String,
+    state :: String
+} deriving (Show, Read, Typeable)
 
-getBio :: (IConnection conn) => conn -> String -> IO (Maybe (String, String))
-getBio conn username = (do
-    stmt <- prepare conn "SELECT username, biography, parsemode FROM bio WHERE username = ?"
-    _ <- execute stmt [toSql username]
-    result <- fetchAllRows stmt
-    case result of
+userKey uid = "User " ++ show uid
+
+instance Indexable User where
+    key User{uid = uid} = userKey uid
+instance Serializable User where
+    serialize = BSLC.pack . show
+    deserialize = read . BSLC.unpack
+
+initDB = do
+    IQ.index uid
+    IQ.index username
+
+getBio :: String -> IO (Maybe (String, String))
+getBio uname = atomically $ do
+    us <- username .==. uname
+    case us of
+        u:_ -> do
+            user <- readDBRef u `onNothing` error "unexpected Nothing"
+            return $ Just (biography user, parsemode user)
         [] -> return Nothing
-        res:_ -> return $ Just (fromSql $ res!!1, fromSql $ res!!2)
-    ) `catch` \e -> print (e :: SomeException) >> return mzero
 
-setBio :: (IConnection conn) => conn -> String -> String -> IO ()
-setBio conn username bio = (do
-    stmt <- prepare conn "UPDATE bio SET biography = ? WHERE username = ?"
-    rows <- execute stmt [toSql bio, toSql username]
-    if rows == 0 then do
-        stmt <- prepare conn "INSERT INTO bio (username, biography) VALUES (?, ?)"
-        _ <- execute stmt [toSql username, toSql bio]
-        commit conn
-    else commit conn
-    ) `catch` \e -> print (e :: SomeException)
+setBio uid uname bio = do
+    let u' = getDBRef $ userKey uid
+    olduser <- readDBRef u' `onNothing` return User{uid = uid, username = uname, biography = bio, parsemode = "plain", state = ""}
+    writeDBRef u' $ olduser {username = uname, biography = bio}
 
-setParseMode :: (IConnection conn) => conn -> String -> String -> IO ()
-setParseMode conn username parsemode = (do
-    stmt <- prepare conn "UPDATE bio SET parsemode = ? WHERE username = ?"
-    _ <- execute stmt [toSql parsemode, toSql username]
-    commit conn
-    ) `catch` \e -> print (e :: SomeException)
+setParseMode uid parsemode = do
+    let u' = getDBRef $ userKey uid
+    userm <- readDBRef u'
+    maybe mzero (\u -> writeDBRef u' $ (u::User) {parsemode = parsemode}) userm
 
-getUserState :: (IConnection conn) => conn -> Int -> IO String
-getUserState conn uid = (do
-    stmt <- prepare conn "SELECT state FROM state WHERE uid = ?"
-    _ <- execute stmt [toSql uid]
-    result <- fetchAllRows stmt
-    case result of
-        [] -> return ""
-        [res]:_ -> return . fromSql $ res
-    ) `catch` \e -> print (e :: SomeException) >> return mzero
+getUserState uid = atomically $ do
+    userm <- readDBRef . getDBRef $ userKey uid
+    return $ maybe "" state userm
 
-setUserState :: (IConnection conn) => conn -> Int -> String -> IO ()
-setUserState conn uid state = (do
-    stmt <- prepare conn "UPDATE state SET state = ? WHERE uid = ?"
-    rows <- execute stmt [toSql state, toSql uid]
-    if rows == 0 then do
-        stmt <- prepare conn "INSERT INTO state (uid, state) VALUES (?, ?)"
-        _ <- execute stmt [toSql uid, toSql state]
-        commit conn
-    else commit conn
-    ) `catch` \e -> print (e :: SomeException)
+setUserState uid s = do
+    let u' = getDBRef $ userKey uid
+    userm <- readDBRef u'
+    maybe mzero (\u -> writeDBRef u' $ (u::User) {state = s}) userm

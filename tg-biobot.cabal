@@ -23,8 +23,8 @@ executable tg-biobot
                        servant-client,
                        regex-compat,
                        text,
-                       HDBC,
-                       HDBC-sqlite3
+                       TCache,
+                       bytestring
   default-language:    Haskell2010
   other-modules:       DB, Secret
 
