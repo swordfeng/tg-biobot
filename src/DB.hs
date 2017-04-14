@@ -68,3 +68,12 @@ setUserState conn uid state = (do
         commit conn
     else commit conn
     ) `catch` \e -> print (e :: SomeException)
+
+getAllUserBio :: IConnection conn =>
+                 conn ->
+                 IO [(String, String, String)]
+getAllUserBio conn = do
+    stmt <- prepare conn "SELECT username, biography, parsemode FROM bio"
+    _ <- execute stmt []
+    result <- fetchAllRows stmt
+    return $ map (\[a,b,c] -> (fromSql a, fromSql b, fromSql c)) result
