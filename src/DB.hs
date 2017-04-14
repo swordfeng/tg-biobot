@@ -29,12 +29,14 @@ data User = User {
     state :: String
 } deriving (Show, Read, Typeable, Generic)
 
-userKey uid = "User " ++ show uid
+uidKey uid = "User/" ++ show uid
 
 instance S.Serialize User
 
 instance Indexable User where
-    key User{uid = uid} = userKey uid
+    key User{uid = uid, username = username}
+        | uid /= 0 = uidKey uid
+        | otherwise = "User/name/" ++ username 
 instance Serializable User where
     serialize = S.encodeLazy
     deserialize = either error id . S.decodeLazy
@@ -53,20 +55,30 @@ getBio uname = atomically $ do
         [] -> return Nothing
 
 setBio uid uname bio = do
-    let u' = getDBRef $ userKey uid
+    let u'' = getDBRef $ "User/name/" ++ uname :: DBRef User
+    mu <- readDBRef u''
+    case mu of
+        Nothing -> return ()
+        Just _ -> delDBRef u''
+    let u' = getDBRef $ uidKey uid
     olduser <- readDBRef u' `onNothing` return User{uid = uid, username = uname, biography = bio, parsemode = "plain", state = ""}
     writeDBRef u' $ olduser {username = uname, biography = bio}
 
 setParseMode uid parsemode = do
-    let u' = getDBRef $ userKey uid
+    let u' = getDBRef $ uidKey uid
     userm <- readDBRef u'
     maybe mzero (\u -> writeDBRef u' $ (u::User) {parsemode = parsemode}) userm
 
 getUserState uid = atomically $ do
-    userm <- readDBRef . getDBRef $ userKey uid
+    userm <- readDBRef . getDBRef $ uidKey uid
     return $ maybe "" state userm
 
 setUserState uid s = do
-    let u' = getDBRef $ userKey uid
+    let u' = getDBRef $ uidKey uid
     userm <- readDBRef u'
     maybe mzero (\u -> writeDBRef u' $ (u::User) {state = s}) userm
+
+importUserBio :: [(String, String, String)] -> STM ()
+importUserBio = mapM_ (writeUser . convUser) where
+    convUser (u, b, p) = User{uid = 0, username = u, biography = b, parsemode = p, state = ""}
+    writeUser u = writeDBRef (getDBRef $ key u) u
