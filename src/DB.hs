@@ -28,6 +28,7 @@ data User = User {
     parsemode :: String,
     state :: String
 } deriving (Show, Read, Typeable, Generic)
+defaultUser = User{uid = 0, username = "", biography = "", parsemode = "plain", state = ""}
 
 uidKey uid = "User/" ++ show uid
 
@@ -61,13 +62,13 @@ setBio uid uname bio = do
         Nothing -> return ()
         Just _ -> delDBRef u''
     let u' = getDBRef $ uidKey uid
-    olduser <- readDBRef u' `onNothing` return User{uid = uid, username = uname, biography = bio, parsemode = "plain", state = ""}
+    olduser <- readDBRef u' `onNothing` return defaultUser{uid = uid, username = uname, biography = bio}
     writeDBRef u' $ olduser {username = uname, biography = bio}
 
 setParseMode uid parsemode = do
     let u' = getDBRef $ uidKey uid
-    userm <- readDBRef u'
-    maybe mzero (\u -> writeDBRef u' $ (u::User) {parsemode = parsemode}) userm
+    userm <- readDBRef u' `onNothing` return defaultUser{uid = uid}
+    writeDBRef u' $ userm {parsemode = parsemode}
 
 getUserState uid = atomically $ do
     userm <- readDBRef . getDBRef $ uidKey uid
@@ -75,8 +76,8 @@ getUserState uid = atomically $ do
 
 setUserState uid s = do
     let u' = getDBRef $ uidKey uid
-    userm <- readDBRef u'
-    maybe mzero (\u -> writeDBRef u' $ (u::User) {state = s}) userm
+    userm <- readDBRef u' `onNothing` return defaultUser{uid = uid}
+    writeDBRef u' $ userm {state = s}
 
 importUserBio :: [(String, String, String)] -> STM ()
 importUserBio = mapM_ (writeUser . convUser) where
