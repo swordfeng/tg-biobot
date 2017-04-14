@@ -24,7 +24,8 @@ executable tg-biobot
                        regex-compat,
                        text,
                        TCache,
-                       bytestring
+                       bytestring,
+                       cereal
   default-language:    Haskell2010
   other-modules:       DB, Secret
 

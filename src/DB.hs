@@ -1,12 +1,17 @@
-{-# LANGUAGE  DeriveDataTypeable, FlexibleInstances, UndecidableInstances #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DeriveGeneric #-}
 module DB where
-
-import Database.HDBC
 
 import Data.TCache
 import Data.TCache.Defs
 import Data.TCache.IndexQuery as IQ
 import Data.TCache.DefaultPersistence
+
+import GHC.Generics (Generic)
+
+import qualified Data.Serialize as S
 
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy.Char8 as BSLC
@@ -22,15 +27,17 @@ data User = User {
     biography :: String,
     parsemode :: String,
     state :: String
-} deriving (Show, Read, Typeable)
+} deriving (Show, Read, Typeable, Generic)
 
 userKey uid = "User " ++ show uid
+
+instance S.Serialize User
 
 instance Indexable User where
     key User{uid = uid} = userKey uid
 instance Serializable User where
-    serialize = BSLC.pack . show
-    deserialize = read . BSLC.unpack
+    serialize = S.encodeLazy
+    deserialize = either error id . S.decodeLazy
 
 initDB = do
     IQ.index uid
